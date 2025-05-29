@@ -57,7 +57,7 @@ export default function MembersPage() {
       const response = await api.get(`/tenants/members/?page=${currentPage}`)
       if (response.data.success) {
         setMembers(response.data.data)
-        console.log(response.data.pagination)
+        // console.log(response.data.pagination)
         setPagination(response.data.pagination)
       }
     } catch (error) {

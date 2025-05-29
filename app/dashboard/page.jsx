@@ -1,69 +1,78 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { FolderOpen, Users, Building2, TrendingUp, Plus } from "lucide-react";
-import Link from "next/link";
-import api from "@/lib/axios";
-import { authService } from "@/lib/auth";
+import { useState, useEffect } from "react"
+import Link from "next/link"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { FolderOpen, Plus, Search, MoreHorizontal, Calendar, Shield } from "lucide-react"
+import api from "@/lib/axios"
+import { toast } from "react-toastify"
+import { authService } from "@/lib/auth"
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    projects: 0,
-    members: 0,
-    storage: "0 MB",
-  });
-  const [recentProjects, setRecentProjects] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const user = authService.getUser();
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pagination, setPagination] = useState(null)
+
+  const user = authService.getUser()
+  const userRole = user?.role || "Member"
+
+  // Check permissions based on role
+  const canCreate = userRole === "Admin" || userRole === "Owner"
+  const canEdit = userRole === "Admin" || userRole === "Owner"
+  const canDelete = userRole === "Admin" || userRole === "Owner"
 
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    fetchProjects()
+  }, [currentPage])
 
-  const fetchDashboardData = async () => {
+  const fetchProjects = async () => {
     try {
-      // Fetch projects
-      const projectsResponse = await api.get("/projects/");
-      if (projectsResponse.data.success) {
-        setStats((prev) => ({
-          ...prev,
-          projects: projectsResponse.data.data.length,
-        }));
-        setRecentProjects(projectsResponse.data.data.slice(0, 5));
-      }
-
-      // Fetch tenant members if user has permission
-      if (user?.role === "Owner" || user?.role === "Admin") {
-        const membersResponse = await api.get("/tenants/members/");
-        if (membersResponse.data.success) {
-          setStats((prev) => ({
-            ...prev,
-            members: membersResponse.data.data.length,
-          }));
-        }
+      const response = await api.get(`/projects/?page=${currentPage}`)
+      if (response.data.success) {
+        setProjects(response.data.data)
+        setPagination(response.data.pagination)
       }
     } catch (error) {
-      console.error("Error fetching dashboard data:", error);
+      toast.error("Failed to fetch projects")
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
+
+  const handleDeleteProject = async (projectId) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete projects")
+      return
+    }
+
+    if (window.confirm("Are you sure you want to delete this project?")) {
+      try {
+        await api.delete(`/projects/${projectId}/`)
+        toast.success("Project deleted successfully")
+        fetchProjects()
+      } catch (error) {
+        toast.error("Failed to delete project")
+      }
+    }
+  }
+
+  const filteredProjects = projects.filter(
+    (project) =>
+      project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      project.description.toLowerCase().includes(searchTerm.toLowerCase()),
+  )
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
       </div>
-    );
+    )
   }
 
   return (
@@ -71,181 +80,132 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back, {user?.first_name}! Here's what's happening with your
-            projects.
-          </p>
+          <h1 className="text-3xl font-bold tracking-tight">Projects</h1>
+          <p className="text-muted-foreground">Manage your environmental data projects</p>
         </div>
-        <div className="flex items-center gap-2">
-          {user?.tenant && (
-            <Link href="/dashboard/tenant">
-              <Button variant="outline" className="w-full justify-start">
-                <Building2 className="mr-2 h-4 w-4" />
-                Manage Team
-              </Button>
-            </Link>
-          )}
+        {canCreate ? (
+          <Link href="/dashboard/projects/create">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </Link>
+        ) : (
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Shield className="h-4 w-4 mr-1" />
+            <span>View Only</span>
+          </div>
+        )}
+      </div>
+
+      {/* Search */}
+      <div className="flex items-center space-x-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search projects..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-8"
+          />
         </div>
       </div>
 
-      {/* Stats Cards */}
-      {user?.tenant && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Total Projects
-              </CardTitle>
-              <FolderOpen className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.projects}</div>
-              <p className="text-xs text-muted-foreground">
-                Active environmental projects
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Team Members
-              </CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.members}</div>
-              <p className="text-xs text-muted-foreground">
-                Collaborating on projects
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                Storage Used
-              </CardTitle>
-              <Building2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.storage}</div>
-              <p className="text-xs text-muted-foreground">
-                Of available storage
-              </p>
-            </CardContent>
-          </Card>
-
-        </div>
-      )}
-
-      {/* Recent Projects */}
-      {user?.tenant && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-          <Card className="col-span-4">
-            <CardHeader>
-              <CardTitle>Recent Projects</CardTitle>
-              <CardDescription>
-                Your latest environmental data projects
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {recentProjects.length > 0 ? (
-                  recentProjects.map((project) => (
-                    <div
-                      key={project.id}
-                      className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium leading-none">
-                          {project.name}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {project.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant="secondary">Active</Badge>
-                        <Link href={`/dashboard/projects/${project.id}`}>
-                          <Button variant="ghost" size="sm">
-                            View
-                          </Button>
-                        </Link>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-center py-6">
-                    <FolderOpen className="mx-auto h-12 w-12 text-muted-foreground" />
-                    <h3 className="mt-2 text-sm font-semibold">No projects</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Get started by creating a new project.
-                    </p>
-                    <div className="mt-6">
-                      <Link href="/dashboard/projects/create">
-                        <Button>
-                          <Plus className="mr-2 h-4 w-4" />
-                          New Project
-                        </Button>
-                      </Link>
-                    </div>
+      {/* Projects Grid */}
+      {filteredProjects.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {filteredProjects.map((project) => (
+            <Card key={project.id} className="hover:shadow-md transition-shadow">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <div className="space-y-1">
+                  <CardTitle className="text-base">{project.name}</CardTitle>
+                  <CardDescription className="text-sm">{project.description}</CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="h-8 w-8 p-0">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem asChild>
+                      <Link href={`/dashboard/projects/${project.id}`}>View Details</Link>
+                    </DropdownMenuItem>
+                    {canEdit && (
+                      <DropdownMenuItem asChild>
+                        <Link href={`/dashboard/projects/${project.id}/edit`}>Edit Project</Link>
+                      </DropdownMenuItem>
+                    )}
+                    {canDelete && (
+                      <DropdownMenuItem onClick={() => handleDeleteProject(project.id)} className="text-red-600">
+                        Delete Project
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between text-sm text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {new Date(project.created_at).toLocaleDateString()}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="col-span-3">
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-              <CardDescription>Common tasks and shortcuts</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link href="/dashboard/projects/create">
-                <Button variant="outline" className="w-full justify-start">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Create New Project
-                </Button>
-              </Link>
-              <Link href="/dashboard/tenant/members">
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="mr-2 h-4 w-4" />
-                  Manage Team
-                </Button>
-              </Link>
-              <Link href="/dashboard/profile">
-                <Button variant="outline" className="w-full justify-start">
-                  <Building2 className="mr-2 h-4 w-4" />
-                  Update Profile
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+                </div>
+                <div className="mt-4">
+                  <Link href={`/dashboard/projects/${project.id}`}>
+                    <Button variant="outline" size="sm" className="w-full">
+                      View Project
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
         </div>
-      )}
-
-      {/* Tenant Status */}
-      {!user?.tenant && (
-        <Card className="border-orange-200 bg-orange-50">
-          <CardHeader>
-            <CardTitle className="text-orange-800">
-              No Tenant Associated
-            </CardTitle>
-            <CardDescription className="text-orange-700">
-              You're not currently part of any tenant. Create or join a tenant
-              to start collaborating.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/dashboard/tenant/create">
-              <Button className="bg-orange-600 hover:bg-orange-700">
-                Create Tenant
-              </Button>
-            </Link>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <FolderOpen className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No projects found</h3>
+            <p className="text-muted-foreground text-center mb-6">
+              {searchTerm ? "No projects match your search criteria." : "Get started by creating your first project."}
+            </p>
+            {canCreate && (
+              <Link href="/dashboard/projects/create">
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Project
+                </Button>
+              </Link>
+            )}
           </CardContent>
         </Card>
       )}
+
+      {/* Pagination */}
+      {pagination && pagination.total_pages > 1 && (
+        <div className="flex items-center justify-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            Page {currentPage} of {pagination.total_pages}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, pagination.total_pages))}
+            disabled={currentPage === pagination.total_pages}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </div>
-  );
+  )
 }

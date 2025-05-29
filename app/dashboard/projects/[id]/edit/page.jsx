@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Shield } from "lucide-react"
 import { toast } from "react-toastify"
 import api from "@/lib/axios"
 import { authService } from "@/lib/auth"
@@ -25,10 +25,12 @@ export default function EditProjectPage() {
   })
 
   const user = authService.getUser()
-  const canEdit = user?.role === "Admin" || user?.role === "Owner"
+  const userRole = user?.role || "Member"
+  const canEdit = userRole === "Admin" || userRole === "Owner"
 
   useEffect(() => {
     if (!canEdit) {
+      toast.error("You don't have permission to edit projects")
       router.push(`/dashboard/projects/${id}`)
       return
     }
@@ -63,6 +65,12 @@ export default function EditProjectPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
+    if (!canEdit) {
+      toast.error("You don't have permission to edit projects")
+      return
+    }
+
     setUpdating(true)
 
     try {
@@ -93,6 +101,19 @@ export default function EditProjectPage() {
         <p className="text-muted-foreground">The project you're trying to edit doesn't exist.</p>
         <Link href="/dashboard/projects">
           <Button className="mt-4">Back to Projects</Button>
+        </Link>
+      </div>
+    )
+  }
+
+  if (!canEdit) {
+    return (
+      <div className="text-center py-8">
+        <Shield className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+        <h3 className="text-lg font-semibold">Permission Denied</h3>
+        <p className="text-muted-foreground">You don't have permission to edit this project.</p>
+        <Link href={`/dashboard/projects/${id}`}>
+          <Button className="mt-4">Back to Project</Button>
         </Link>
       </div>
     )

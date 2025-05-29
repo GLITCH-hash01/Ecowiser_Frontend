@@ -43,6 +43,7 @@ import {
   Loader2,
   MoreHorizontal,
   Eye,
+  Shield,
 } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "react-toastify"
@@ -73,7 +74,13 @@ export default function ProjectDetailPage() {
   const [selectedCsvFile, setSelectedCsvFile] = useState(null)
 
   const user = authService.getUser()
-  const canEdit = user?.role === "Admin" || user?.role === "Owner"
+  const userRole = user?.role || "Member"
+
+  // Check permissions based on role
+  const canEdit = userRole === "Admin" || userRole === "Owner"
+  const canUpload = true // All roles including Member can upload
+  const canDelete = userRole === "Admin" || userRole === "Owner"
+  const canChangeVisibility = userRole === "Admin" || userRole === "Owner"
 
   useEffect(() => {
     fetchProjectData()
@@ -199,6 +206,11 @@ export default function ProjectDetailPage() {
   }
 
   const handleDeleteResource = async (resourceId) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete resources")
+      return
+    }
+
     try {
       const response = await api.delete(`/resources/media/${resourceId}/`)
       if (response.data.success) {
@@ -211,6 +223,11 @@ export default function ProjectDetailPage() {
   }
 
   const handleDeleteCsv = async (csvId) => {
+    if (!canDelete) {
+      toast.error("You don't have permission to delete CSV files")
+      return
+    }
+
     try {
       const response = await api.delete(`/resources/csv/?id=${csvId}`)
       if (response.data.success) {
@@ -241,6 +258,11 @@ export default function ProjectDetailPage() {
   }
 
   const handleChangeVisibility = async (resourceId, newVisibility) => {
+    if (!canChangeVisibility) {
+      toast.error("You don't have permission to change resource visibility")
+      return
+    }
+
     try {
       const response = await api.post(`/resources/media/visibility/${resourceId}/`, {
         visibility: newVisibility,
@@ -353,6 +375,12 @@ export default function ProjectDetailPage() {
             <Button variant="outline">Edit Project</Button>
           </Link>
         )}
+        {!canEdit && (
+          <div className="flex items-center text-sm text-muted-foreground">
+            <Shield className="h-4 w-4 mr-1" />
+            <span>View Only</span>
+          </div>
+        )}
       </div>
 
       {/* Project Info */}
@@ -408,70 +436,72 @@ export default function ProjectDetailPage() {
                   </CardTitle>
                   <CardDescription>Upload and manage project media files</CardDescription>
                 </div>
-                <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Media
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upload Media Resource</DialogTitle>
-                      <DialogDescription>Add a new media file to this project</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleUpload} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="file">File</Label>
-                        <Input id="file" type="file" onChange={handleFileChange} required />
-                      </div>
+                {canUpload && (
+                  <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Media
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Upload Media Resource</DialogTitle>
+                        <DialogDescription>Add a new media file to this project</DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleUpload} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="file">File</Label>
+                          <Input id="file" type="file" onChange={handleFileChange} required />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="name">File Name</Label>
-                        <Input
-                          id="name"
-                          placeholder="Enter file name"
-                          value={uploadFileName}
-                          onChange={(e) => setUploadFileName(e.target.value)}
-                          required
-                        />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="name">File Name</Label>
+                          <Input
+                            id="name"
+                            placeholder="Enter file name"
+                            value={uploadFileName}
+                            onChange={(e) => setUploadFileName(e.target.value)}
+                            required
+                          />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="visibility">Visibility</Label>
-                        <Select value={uploadVisibility} onValueChange={setUploadVisibility}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select visibility" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Private">Private</SelectItem>
-                            <SelectItem value="Public">Public</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="visibility">Visibility</Label>
+                          <Select value={uploadVisibility} onValueChange={setUploadVisibility}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select visibility" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Private">Private</SelectItem>
+                              <SelectItem value="Public">Public</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="description">Description (Optional)</Label>
-                        <Textarea
-                          id="description"
-                          placeholder="Describe this resource..."
-                          value={uploadDescription}
-                          onChange={(e) => setUploadDescription(e.target.value)}
-                        />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description (Optional)</Label>
+                          <Textarea
+                            id="description"
+                            placeholder="Describe this resource..."
+                            value={uploadDescription}
+                            onChange={(e) => setUploadDescription(e.target.value)}
+                          />
+                        </div>
 
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => setShowUploadDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={uploading || !uploadFile}>
-                          {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Upload
-                        </Button>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" onClick={() => setShowUploadDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={uploading || !uploadFile}>
+                            {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Upload
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -532,22 +562,20 @@ export default function ProjectDetailPage() {
                                   <Download className="mr-2 h-4 w-4" />
                                   Download
                                 </DropdownMenuItem>
-                                {(canEdit || resource.uploaded_by?.id === user?.id) && (
-                                  <>
-                                    <DropdownMenuItem
-                                      onClick={() =>
-                                        handleChangeVisibility(
-                                          resource.id,
-                                          resource.visibility === "Public" ? "Private" : "Public",
-                                        )
-                                      }
-                                    >
-                                      <Eye className="mr-2 h-4 w-4" />
-                                      Make {resource.visibility === "Public" ? "Private" : "Public"}
-                                    </DropdownMenuItem>
-                                  </>
+                                {canChangeVisibility && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      handleChangeVisibility(
+                                        resource.id,
+                                        resource.visibility === "Public" ? "Private" : "Public",
+                                      )
+                                    }
+                                  >
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Make {resource.visibility === "Public" ? "Private" : "Public"}
+                                  </DropdownMenuItem>
                                 )}
-                                {(canEdit || resource.uploaded_by?.id === user?.id) && (
+                                {(canDelete || resource.uploaded_by?.id === user?.id) && (
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
@@ -606,57 +634,59 @@ export default function ProjectDetailPage() {
                   </CardTitle>
                   <CardDescription>Upload and manage CSV data files</CardDescription>
                 </div>
-                <Dialog open={showCsvUploadDialog} onOpenChange={setShowCsvUploadDialog}>
-                  <DialogTrigger asChild>
-                    <Button>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload CSV
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Upload CSV File</DialogTitle>
-                      <DialogDescription>Add a new CSV data file to this project</DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleCsvUpload} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="csvFile">CSV File</Label>
-                        <Input id="csvFile" type="file" accept=".csv" onChange={handleCsvFileChange} required />
-                      </div>
+                {canUpload && (
+                  <Dialog open={showCsvUploadDialog} onOpenChange={setShowCsvUploadDialog}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload CSV
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Upload CSV File</DialogTitle>
+                        <DialogDescription>Add a new CSV data file to this project</DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleCsvUpload} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="csvFile">CSV File</Label>
+                          <Input id="csvFile" type="file" accept=".csv" onChange={handleCsvFileChange} required />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="csvName">File Name</Label>
-                        <Input
-                          id="csvName"
-                          placeholder="Enter file name"
-                          value={csvUploadName}
-                          onChange={(e) => setCsvUploadName(e.target.value)}
-                          required
-                        />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="csvName">File Name</Label>
+                          <Input
+                            id="csvName"
+                            placeholder="Enter file name"
+                            value={csvUploadName}
+                            onChange={(e) => setCsvUploadName(e.target.value)}
+                            required
+                          />
+                        </div>
 
-                      <div className="space-y-2">
-                        <Label htmlFor="csvDescription">Description (Optional)</Label>
-                        <Textarea
-                          id="csvDescription"
-                          placeholder="Describe this CSV file..."
-                          value={csvUploadDescription}
-                          onChange={(e) => setCsvUploadDescription(e.target.value)}
-                        />
-                      </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="csvDescription">Description (Optional)</Label>
+                          <Textarea
+                            id="csvDescription"
+                            placeholder="Describe this CSV file..."
+                            value={csvUploadDescription}
+                            onChange={(e) => setCsvUploadDescription(e.target.value)}
+                          />
+                        </div>
 
-                      <div className="flex justify-end gap-2">
-                        <Button type="button" variant="outline" onClick={() => setShowCsvUploadDialog(false)}>
-                          Cancel
-                        </Button>
-                        <Button type="submit" disabled={uploadingCsv || !csvUploadFile}>
-                          {uploadingCsv && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                          Upload CSV
-                        </Button>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
+                        <div className="flex justify-end gap-2">
+                          <Button type="button" variant="outline" onClick={() => setShowCsvUploadDialog(false)}>
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={uploadingCsv || !csvUploadFile}>
+                            {uploadingCsv && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                            Upload CSV
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </CardHeader>
             <CardContent>
@@ -717,7 +747,7 @@ export default function ProjectDetailPage() {
                                     Download
                                   </DropdownMenuItem>
                                 )}
-                                {(canEdit || csvFile.uploaded_by?.id === user?.id) && (
+                                {(canDelete || csvFile.uploaded_by?.id === user?.id) && (
                                   <AlertDialog>
                                     <AlertDialogTrigger asChild>
                                       <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-red-600">
